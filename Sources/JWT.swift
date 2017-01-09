@@ -2,7 +2,7 @@
 import Foundation
 import OpenSSL
 
-public struct Certificate {
+public class Certificate {
     
     public enum Error: Swift.Error {
         case noFile
@@ -27,7 +27,7 @@ public struct Certificate {
         return try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
     }()
     
-    public mutating func keys() throws -> KeysValue {
+    public func keys() throws -> KeysValue {
         if let keys = self._parsedKeys {
             return keys
         }
@@ -37,7 +37,7 @@ public struct Certificate {
         return self._parsedKeys!
     }
     
-    init(pem filePath: String) {
+    public init(pem filePath: String) {
         self.filePath = filePath
     }
     
