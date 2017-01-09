@@ -10,7 +10,6 @@ public struct Certificate {
         case cannotReadPrivateKey
         case noECKey
         case cannotExtractPrivateKey
-        case cannotExtractPublicKey
     }
     
     public enum `Type` {
@@ -23,6 +22,10 @@ public struct Certificate {
     public private (set) var type = Type.pem
     
     private var _parsedKeys: KeysValue?
+    
+    internal static var hexStringRegex: NSRegularExpression = {
+        return try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
+    }()
     
     public mutating func keys() throws -> KeysValue {
         if let keys = self._parsedKeys {
@@ -62,7 +65,7 @@ public struct Certificate {
                 .replacingOccurrences(of: "-----END PRIVATE KEY-----", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             
-            let splittedText = key.splitByLength(64)
+            let splittedText = key.split(byLength: 64)
             let newText = "-----BEGIN PRIVATE KEY-----\n\(splittedText.joined(separator: "\n"))\n-----END PRIVATE KEY-----"
             try newText.write(toFile: resultPath, atomically: false, encoding: .utf8)
         }
@@ -93,62 +96,74 @@ public struct Certificate {
         } else {
             publicKeyString = ""
         }
-    
         
         let bn = EC_KEY_get0_private_key(ecKey)
         guard let privateKeyBN = BN_bn2hex(bn),
             let privateKeyStringPart = String.init(validatingUTF8: privateKeyBN),
-            let privateKeyString = String?.some("00\(privateKeyStringPart)"),
-            let extractedPrivateKey = privateKeyString.dataFromHexadecimalString()?.base64EncodedString() else {
+            let privateKeyString = String?.some("00\(privateKeyStringPart)") else {
                 throw Error.cannotExtractPrivateKey
         }
         
-        guard let extractedPublicKey = publicKeyString.dataFromHexadecimalString()?.base64EncodedString() else {
-            throw Error.cannotExtractPublicKey
-        }
+        let extractedPrivateKey = Data(fromHexString: privateKeyString).base64EncodedString()
+        let extractedPublicKey = Data(fromHexString: publicKeyString).base64EncodedString()
 
         return (extractedPrivateKey, extractedPublicKey)
     }
 }
 
-extension String {
-    func dataFromHexadecimalString() -> NSData? {
-        let data = NSMutableData(capacity: characters.count / 2)
-        
-        let regex = try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
-        regex.enumerateMatches(in: self, options: [], range: NSMakeRange(0, characters.count)) { match, flags, stop in
-            let range = self.range(from: match!.range)
-            let byteString = self.substring(with: range!)
-            var num = UInt8(byteString, radix: 16)
-            data?.append(&num, length: 1)
-        }
-        
-        return data
-    }
+extension Data {
     
-    func splitByLength(_ length: Int) -> [String] {
-        var result = [String]()
-        var collectedCharacters = [Character]()
-        collectedCharacters.reserveCapacity(length)
-        var count = 0
+    init(fromHexString string: String) {
+        self.init(capacity: string.characters.count / 2)
         
-        for character in self.characters {
-            collectedCharacters.append(character)
-            count += 1
-            if (count == length) {
-                // Reached the desired length
-                count = 0
-                result.append(String(collectedCharacters))
-                collectedCharacters.removeAll(keepingCapacity: true)
-            }
+        let regex = Certificate.hexStringRegex
+        let stringRange = NSMakeRange(0, string.characters.count)
+        regex.enumerateMatches(in: string,
+                               range: stringRange) { match, flags, stop in
+                                guard let match = match,
+                                    let range = string.range(from: match.range),
+                                    let byteString = String?.some(string.substring(with: range)),
+                                    var num = UInt8(byteString, radix: 16) else {
+                                        return
+                                }
+                                
+                                self.append(&num, count: 1)
+        }
+    }
+}
+
+extension String {
+    
+    func split(byLength length: Int) -> [String] {
+        var result = [String]()
+        
+        func offset(from index: String.Index, with offset: Int) -> String.Index {
+            return self.index(index, offsetBy: offset, limitedBy: self.endIndex) ?? self.endIndex
         }
         
-        // Append the remainder
-        if !collectedCharacters.isEmpty {
-            result.append(String(collectedCharacters))
+        func range(from index: String.Index, with length: Int) -> Range<String.Index> {
+            return index..<offset(from: index, with: length)
+        }
+        
+        var splitRange = range(from: self.startIndex, with: length)
+        
+        while splitRange.lowerBound != self.endIndex {
+            let substring = self.substring(with: splitRange)
+            result.append(substring)
+            splitRange = range(from: splitRange.upperBound, with: length)
         }
         
         return result
+    }
+    
+    func range(from nsRange: NSRange) -> Range<String.Index>? {
+        guard let from16 = self.utf16.index(utf16.startIndex, offsetBy: nsRange.location, limitedBy: utf16.endIndex),
+            let to16 = self.utf16.index(from16, offsetBy: nsRange.length, limitedBy: utf16.endIndex),
+            let from = String.Index(from16, within: self),
+            let to = String.Index(to16, within: self) else {
+                return nil
+        }
+        return from..<to
     }
 }
 
@@ -159,15 +174,5 @@ extension String {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
-    }
-    
-    func range(from nsRange: NSRange) -> Range<String.Index>? {
-        guard
-            let from16 = utf16.index(utf16.startIndex, offsetBy: nsRange.location, limitedBy: utf16.endIndex),
-            let to16 = utf16.index(from16, offsetBy: nsRange.length, limitedBy: utf16.endIndex),
-            let from = String.Index(from16, within: self),
-            let to = String.Index(to16, within: self)
-            else { return nil }
-        return from ..< to
     }
 }
