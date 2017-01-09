@@ -16,18 +16,22 @@ public class Certificate {
         case pem
     }
     
-    public typealias KeysValue = (`private`: String, `public`: String)
+    public struct Keys {
+        
+        public var `private`: String
+        public var `public`: String
+    }
     
     public private (set) var filePath: String
     public private (set) var type = Type.pem
     
-    private var _parsedKeys: KeysValue?
+    private var _parsedKeys: Keys?
     
     internal static var hexStringRegex: NSRegularExpression = {
         return try! NSRegularExpression(pattern: "[0-9a-f]{1,2}", options: .caseInsensitive)
     }()
     
-    public func keys() throws -> KeysValue {
+    public func keys() throws -> Keys {
         if let keys = self._parsedKeys {
             return keys
         }
@@ -41,7 +45,7 @@ public class Certificate {
         self.filePath = filePath
     }
     
-    private static func keys(for path: String) throws -> KeysValue {
+    private static func keys(for path: String) throws -> Keys {
         let directoryName: String
         let fileName: String
         
@@ -107,7 +111,7 @@ public class Certificate {
         let extractedPrivateKey = Data(fromHexString: privateKeyString).base64EncodedString()
         let extractedPublicKey = Data(fromHexString: publicKeyString).base64EncodedString()
 
-        return (extractedPrivateKey, extractedPublicKey)
+        return Keys(private: extractedPrivateKey, public: extractedPublicKey)
     }
 }
 
