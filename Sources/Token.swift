@@ -2,7 +2,7 @@
 import Foundation
 import SwiftyJSON
 
-public struct JWT {
+public struct Token {
     
     public enum Error: Swift.Error {
         case notJSON
