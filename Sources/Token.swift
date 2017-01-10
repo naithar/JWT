@@ -6,27 +6,25 @@ public struct Token {
     
     public enum Error: Swift.Error {
         case notJSON
+        case wrongToken
+        case wrongTokenJSON
     }
     
-    public private (set) var headers: [String : String]
-    public private (set) var payload: [String : String]
+    public private (set) var headers: [String : Any]
+    public private (set) var payload: [String : Any]
     public private (set) var encoding: Encodable
     public private (set) var signer: Signer
     
-    public private (set) var encoded = (
-        header: String?.none,
-        payload: String?.none,
-        signature: String?.none
-    )
+    public private (set) var encoded: (header: String, payload: String, signature: String)
     
     public var token: String {
         return "\(self.encoded.header).\(self.encoded.payload).\(self.encoded.signature)"
     }
     
-    public init(headers: [String : String],
-         payload: [String : String],
-         encoding: Encodable,
-         signer: Signer) throws {
+    public init(headers: [String : Any],
+                payload: [String : Any],
+                encoding: Encodable = Encoding.base64,
+                signer: Signer) throws {
         self.headers = headers
         self.payload = payload
         self.encoding = encoding
@@ -47,5 +45,37 @@ public struct Token {
         let signatureData = try self.signer.sign(string: signerInput)
         
         self.encoded.signature = try self.encoding.encode(data: signatureData)
+    }
+    
+    public init(token: String,
+                encoding: Encodable = Encoding.base64,
+                signer: Signer) throws {
+        self.encoding = encoding
+        self.signer = signer
+        
+        let segments = token.components(separatedBy: ".")
+        
+        guard segments.count == 3 else {
+            throw Error.wrongToken
+        }
+        
+        self.encoded.header = segments[0]
+        self.encoded.payload = segments[1]
+        self.encoded.signature = segments[2]
+        
+        let headerJSONData = try encoding.decode(string: self.encoded.header)
+        let payloadJSONData = try encoding.decode(string: self.encoded.payload)
+        
+        guard let headers = JSON(data: headerJSONData).dictionaryObject else {
+            throw Error.wrongTokenJSON
+        }
+        
+        self.headers = headers
+        
+        guard let payload = JSON(data: payloadJSONData).dictionaryObject else {
+            throw Error.wrongTokenJSON
+        }
+        
+        self.payload = payload
     }
 }
