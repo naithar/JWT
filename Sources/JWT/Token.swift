@@ -36,7 +36,16 @@ public struct Token {
                 payload: [String : Any],
                 encoding: Encodable = Encoding.base64,
                 signer: Signer) throws {
-        self.headers = headers
+        var resultHeaders = [String : Any]()
+        resultHeaders["alg"] = signer.algorithm
+        resultHeaders["typ"] = "JWT"
+        
+        for (key, value) in headers {
+            resultHeaders[key] = value
+        }
+        
+        self.headers = resultHeaders
+        
         self.payload = payload
         self.encoding = encoding
         self.signer = signer
