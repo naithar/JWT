@@ -9,8 +9,6 @@
 import Foundation
 import OpenSSL
 
-
-
 public protocol Signer {
     
     func sign(string: String) throws -> Data
