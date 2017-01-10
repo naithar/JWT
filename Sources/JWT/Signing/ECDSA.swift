@@ -9,7 +9,7 @@
 import Foundation
 import OpenSSL
 
-public enum ECSAError: Swift.Error {
+public enum ECDSAError: Swift.Error {
     case nonUTF8String
     case nonBase64EncodedKey
     case noKeyForCurve
@@ -18,7 +18,7 @@ public enum ECSAError: Swift.Error {
     case cannotCreatePublicKey
 }
 
-public protocol ECSASigner: Signer {
+public protocol ECDSASigner: Signer {
     
     var privateKey: String { get }
     var publicKey: String? { get }
@@ -27,11 +27,11 @@ public protocol ECSASigner: Signer {
     var hash: Hash { get }
     
     init(`private` privateKey: String, `public` publicKey: String?)
-    init(filePath: String)
+    init(filePath: String) throws
     init(keys: JWT.Certificate.Keys)
 }
 
-public struct ES256 {
+public struct ES256: ECDSASigner {
     
     public private (set) var privateKey: String
     public private (set) var publicKey: String?
@@ -41,25 +41,25 @@ public struct ES256 {
     
     public let algorithm = "ES256"
     
-    init(`private` privateKey: String, `public` publicKey: String? = nil) {
+    public init(`private` privateKey: String, `public` publicKey: String? = nil) {
         self.privateKey = privateKey
         self.publicKey = publicKey
     }
     
-    init(filePath: String) throws {
+    public init(filePath: String) throws {
         let certificate = JWT.Certificate(pem: filePath)
         let keys = try certificate.keys()
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
     
-    init(keys: JWT.Certificate.Keys) {
+    public init(keys: JWT.Certificate.Keys) {
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
 }
 
-public struct ES384 {
+public struct ES384: ECDSASigner {
     
     public private (set) var privateKey: String
     public private (set) var publicKey: String?
@@ -69,25 +69,25 @@ public struct ES384 {
     
     public let algorithm = "ES384"
     
-    init(`private` privateKey: String, `public` publicKey: String? = nil) {
+    public init(`private` privateKey: String, `public` publicKey: String? = nil) {
         self.privateKey = privateKey
         self.publicKey = publicKey
     }
     
-    init(filePath: String) throws {
+    public init(filePath: String) throws {
         let certificate = JWT.Certificate(pem: filePath)
         let keys = try certificate.keys()
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
     
-    init(keys: JWT.Certificate.Keys) {
+    public init(keys: JWT.Certificate.Keys) {
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
 }
 
-public struct ES512 {
+public struct ES512: ECDSASigner {
     
     public private (set) var privateKey: String
     public private (set) var publicKey: String?
@@ -97,29 +97,29 @@ public struct ES512 {
     
     public let algorithm = "ES512"
     
-    init(`private` privateKey: String, `public` publicKey: String? = nil) {
+    public init(`private` privateKey: String, `public` publicKey: String? = nil) {
         self.privateKey = privateKey
         self.publicKey = publicKey
     }
     
-    init(filePath: String) throws {
+    public init(filePath: String) throws {
         let certificate = JWT.Certificate(pem: filePath)
         let keys = try certificate.keys()
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
     
-    init(keys: JWT.Certificate.Keys) {
+    public init(keys: JWT.Certificate.Keys) {
         self.privateKey = keys.private
         self.publicKey = keys.public
     }
 }
 
-extension ECSASigner {
+extension ECDSASigner {
     
     private func newECKey() throws -> OpaquePointer {
         guard let key = EC_KEY_new_by_curve_name(self.curve) else {
-            throw ECSAError.noKeyForCurve
+            throw ECDSAError.noKeyForCurve
         }
         
         return key
@@ -157,44 +157,44 @@ extension ECSASigner {
     
     fileprivate func newECPublicKey() throws -> OpaquePointer {
         guard let publicKey = self.publicKey else {
-            throw ECSAError.noPublicKey
+            throw ECDSAError.noPublicKey
         }
         var ecKey: OpaquePointer? = try self.newECKey()
         var publicBytesPointer: UnsafePointer<UInt8>?
         
         guard let key = Data(base64Encoded: publicKey) else {
-            throw ECSAError.cannotCreatePublicKey
+            throw ECDSAError.cannotCreatePublicKey
         }
         _ = key.withUnsafeBytes { (bytes: UnsafePointer<UInt8>) in
             publicBytesPointer = UnsafePointer<UInt8>(bytes)
         }
         guard let publicECKey = o2i_ECPublicKey(&ecKey, &publicBytesPointer, key.count) else {
-            throw ECSAError.cannotCreatePublicKey
+            throw ECDSAError.cannotCreatePublicKey
         }
         return publicECKey
     }
     
     public func sign(string: String) throws -> Data {
         guard let inputData = string.data(using: .utf8) else {
-            throw ECSAError.nonUTF8String
+            throw ECDSAError.nonUTF8String
         }
         
         guard let keyData = Data(base64Encoded: self.privateKey) else {
-            throw ECSAError.nonBase64EncodedKey
+            throw ECDSAError.nonBase64EncodedKey
         }
         
         var hash = try self.hash.perform(on: inputData)
         let ecKeyPair = try self.newECKeyPair(for: keyData)
         
         guard let signature = ECDSA_do_sign(&hash, Int32(hash.count), ecKeyPair) else {
-            throw ECSAError.cannotSign
+            throw ECDSAError.cannotSign
         }
         
         var derEncodedSignature: UnsafeMutablePointer<UInt8>?
         let derLength = i2d_ECDSA_SIG(signature, &derEncodedSignature)
         
         guard let derCopy = derEncodedSignature, derLength > 0 else {
-            throw ECSAError.cannotSign
+            throw ECDSAError.cannotSign
         }
         
         var derBytes = [UInt8](repeating: 0, count: Int(derLength))
