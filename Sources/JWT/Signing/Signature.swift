@@ -87,7 +87,7 @@ extension ES256 {
         }
         
         return key
-
+        
     }
     
     fileprivate func hash(for message: Data) throws -> [UInt8] {
@@ -143,12 +143,17 @@ extension ES256 {
     
     fileprivate func newECPublicKey() throws -> OpaquePointer {
         var ecKey: OpaquePointer? = try newECKey()
-        var publicBytesPointer: UnsafePointer? = UnsafePointer<UInt8>(self.keys.public)
+        var publicBytesPointer: UnsafePointer<UInt8>?
         
-        guard let publicECKey = o2i_ECPublicKey(&ecKey, &publicBytesPointer, self.keys.public.utf16.count) else {
+        guard let key = Data(base64Encoded: self.keys.public) else {
             throw Error.cannotCreatePublicKey
         }
-        
+        _ = key.withUnsafeBytes { (bytes: UnsafePointer<UInt8>) in
+            publicBytesPointer = UnsafePointer<UInt8>(bytes)
+        }
+        guard let publicECKey = o2i_ECPublicKey(&ecKey, &publicBytesPointer, key.count) else {
+            throw Error.cannotCreatePublicKey
+        }
         return publicECKey
     }
 }

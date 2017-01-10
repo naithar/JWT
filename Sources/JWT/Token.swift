@@ -21,6 +21,17 @@ public struct Token {
         return "\(self.encoded.header).\(self.encoded.payload).\(self.encoded.signature)"
     }
     
+    public var isValid: Bool {
+        let value = "\(self.encoded.header).\(self.encoded.payload)"
+        guard let input = value.data(using: .utf8),
+            let signature = try? self.encoding.decode(string: self.encoded.signature),
+            let result = try? self.signer.verify(input, with: signature) else {
+                return false
+        }
+        
+        return result
+    }
+    
     public init(headers: [String : Any],
                 payload: [String : Any],
                 encoding: Encodable = Encoding.base64,
