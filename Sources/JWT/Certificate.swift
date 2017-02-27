@@ -9,6 +9,10 @@
 import Foundation
 import OpenSSL
 
+#if os(Linux)
+internal typealias NSRegularExpression = RegularExpression
+#endif
+
 public class Certificate {
     
     public enum Error: Swift.Error {
