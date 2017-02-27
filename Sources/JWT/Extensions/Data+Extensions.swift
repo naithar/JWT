@@ -11,11 +11,11 @@ import Foundation
 extension Data {
     
     init(fromHexString string: String) {
-        self.init(capacity: string.characters.count / 2)
+        var result = Data(capacity: string.characters.count / 2)
         
         let regex = Certificate.hexStringRegex
         let stringRange = NSMakeRange(0, string.characters.count)
-        regex.enumerateMatches(in: string,
+        regex.enumerateMatches(in: string, options: [],
                                range: stringRange) { match, flags, stop in
                                 guard let match = match,
                                     let range = string.range(from: match.range),
@@ -24,7 +24,10 @@ extension Data {
                                         return
                                 }
                                 
-                                self.append(&num, count: 1)
+                                result.append(&num, count: 1)
         }
+        
+        self = result
     }
+    
 }
