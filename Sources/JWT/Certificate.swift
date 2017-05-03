@@ -9,7 +9,7 @@
 import Foundation
 import OpenSSL
 
-#if os(Linux)
+#if os(Linux) && !swift(>=3.1)
 internal typealias NSRegularExpression = RegularExpression
 #endif
 
