@@ -3,7 +3,7 @@ import PackageDescription
 let package = Package(
     name: "JWT",
     dependencies: [
-        .Package(url: "https://github.com/IBM-Swift/SwiftyJSON.git", majorVersion: 15)
+        .Package(url: "https://github.com/IBM-Swift/SwiftyJSON.git", majorVersion: 16)
     ]
 )
 
